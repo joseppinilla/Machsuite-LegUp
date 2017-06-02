@@ -5,20 +5,22 @@ V. Volkov and B. Kazian. Fitting fft onto the g80 architecture. 2008.
 
 #include "fft.h"
 
+
+
 //////BEGIN TWIDDLES ////////
 #define THREADS 64
-#define cmplx_M_x(a_x, a_y, b_x, b_y) (a_x*b_x - a_y *b_y)
-#define cmplx_M_y(a_x, a_y, b_x, b_y) (a_x*b_y + a_y *b_x)
-#define cmplx_MUL_x(a_x, a_y, b_x, b_y ) (a_x*b_x - a_y*b_y)
-#define cmplx_MUL_y(a_x, a_y, b_x, b_y ) (a_x*b_y + a_y*b_x)
-#define cmplx_mul_x(a_x, a_y, b_x, b_y) (a_x*b_x - a_y*b_y)
-#define cmplx_mul_y(a_x, a_y, b_x, b_y) (a_x*b_y + a_y*b_x)
-#define cmplx_add_x(a_x, b_x) (a_x + b_x)
-#define cmplx_add_y(a_y, b_y) (a_y + b_y)
-#define cmplx_sub_x(a_x, b_x) (a_x - b_x)
-#define cmplx_sub_y(a_y, b_y) (a_y - b_y)
-#define cm_fl_mul_x(a_x, b) (b*a_x)
-#define cm_fl_mul_y(a_y, b) (b*a_y)
+#define cmplx_M_x(a_x, a_y, b_x, b_y) float64_add(float64_mul(a_x, b_x), -float64_mul(a_y, b_y))
+#define cmplx_M_y(a_x, a_y, b_x, b_y) float64_add(float64_mul(a_x, b_y), float64_mul(a_y, b_x))
+#define cmplx_MUL_x(a_x, a_y, b_x, b_y ) float64_add(float64_mul(a_x, b_x), -float64_mul(a_y, b_y))
+#define cmplx_MUL_y(a_x, a_y, b_x, b_y ) float64_add(float64_mul(a_x, b_y), float64_mul(a_y, b_x))
+#define cmplx_mul_x(a_x, a_y, b_x, b_y) float64_add(float64_mul(a_x, b_x), -float64_mul(a_y, b_y))
+#define cmplx_mul_y(a_x, a_y, b_x, b_y) float64_add(float64_mul(a_x, b_y), float64_mul(a_y, b_x))
+#define cmplx_add_x(a_x, b_x) float64_add(a_x , b_x)
+#define cmplx_add_y(a_y, b_y) float64_add(a_y , b_y)
+#define cmplx_sub_x(a_x, b_x) float64_add(a_x , -b_x)
+#define cmplx_sub_y(a_y, b_y) float64_add(a_y , -b_y)
+#define cm_fl_mul_x(a_x, b) float64_mul(b, a_x)
+#define cm_fl_mul_y(a_y, b) float64_mul(b, a_y)
 
 void twiddles8(TYPE a_x[8], TYPE a_y[8], int i, int n){
     int reversed8[8] = {0,4,2,6,1,5,3,7};
@@ -26,9 +28,13 @@ void twiddles8(TYPE a_x[8], TYPE a_y[8], int i, int n){
     TYPE phi, tmp, phi_x, phi_y;
 
     twiddles:for(j=1; j < 8; j++){
-        phi = ((-2*PI*reversed8[j]/n)*i);
-        phi_x = cos(phi);
-        phi_y = sin(phi);
+  //      phi = ((-2*PI*reversed8[j]/n)*i);
+
+	phi = 	float64_mul(float64_div(float64_mul(float64_mul(0xc000000000000000, PI) , reversed8[j]) , n) , i);
+        phi_y = dfsin_sin(phi);
+
+	phi_x = float64_add(1, -float64_mul(phi_y,phi_y));
+	phi_x = float64_div(phi_x,phi_x);
         tmp = a_x[j];
         a_x[j] = cmplx_M_x(a_x[j], a_y[j], phi_x, phi_y);
         a_y[j] = cmplx_M_y(tmp, a_y[j], phi_x, phi_y);
@@ -49,13 +55,13 @@ void twiddles8(TYPE a_x[8], TYPE a_y[8], int i, int n){
     TYPE exp_1_44_x;		\
     TYPE exp_1_44_y;		\
     TYPE tmp;			\
-    exp_1_44_x =  0.0;		\
-    exp_1_44_y =  -1.0;		\
+    exp_1_44_x =  0;		\
+    exp_1_44_y =  0xbff0000000000000;		\
     FF2( a0_x, a0_y, a2_x, a2_y);   \
     FF2( a1_x, a1_y, a3_x, a3_y);   \
     tmp = *a3_x;			\
-    *a3_x = *a3_x*exp_1_44_x-*a3_y*exp_1_44_y;     	\
-    *a3_y = tmp*exp_1_44_y - *a3_y*exp_1_44_x;    	\
+    *a3_x = float64_add(float64_mul(*a3_x, exp_1_44_x), -float64_mul(*a3_y, exp_1_44_y));	\
+    *a3_y = float64_add(float64_mul(tmp, exp_1_44_y), -float64_mul(*a3_y, exp_1_44_x)); 	\
     FF2( a0_x, a0_y, a1_x, a1_y );                  \
     FF2( a2_x, a2_y, a3_x, a3_y );                  \
 }

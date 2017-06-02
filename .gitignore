@@ -1,3 +1,9 @@
+*.dot
+*.mif
+*.tex
+*.ll
+*.bc
+*.rpt
 output.data
 generate
 aes/aes/aes
